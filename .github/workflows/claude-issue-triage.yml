@@ -42,6 +42,8 @@ jobs:
             - **Información faltante**: qué datos pediría al autor (navegador, pasos para reproducir, etc.), si aplica.
             - **Siguientes pasos** sugeridos.
 
+            Formato: el comentario debe estar escrito en Markdown compatible con GitHub (GitHub Flavored Markdown): usa encabezados, negritas, listas, tablas y bloques de código con triple acento grave e indicación del lenguaje (```js) cuando corresponda, y `código en línea` para nombres de archivos, funciones y variables. Para pasar el cuerpo con `gh issue comment`, usa un heredoc con `--body-file -` para que los saltos de línea se conserven y no aparezcan como `\n` literales.
+
             No modifiques archivos del repositorio ni cierres el issue. Sé conciso.
           claude_args: |
             --allowedTools "Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh label list:*),Read,Grep,Glob"
