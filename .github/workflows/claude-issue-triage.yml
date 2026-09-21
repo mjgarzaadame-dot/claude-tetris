@@ -1,0 +1,47 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage issue with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: ""
+          prompt: |
+            Eres un asistente de triaje de issues para este repositorio (un Tetris en JavaScript vanilla con HTML5 Canvas; lee CLAUDE.md para el contexto de la arquitectura).
+
+            Analiza el issue #${{ github.event.issue.number }} del repositorio ${{ github.repository }} (acción: ${{ github.event.action }}).
+
+            Pasos:
+            1. Lee el issue con `gh issue view ${{ github.event.issue.number }} --comments`.
+            2. Revisa los labels existentes con `gh label list`. Elige los que mejor apliquen (tipo: bug, enhancement, question, documentation; y, si existen, área o prioridad). Solo usa labels que ya existan en el repositorio.
+            3. Si el issue fue editado, quita los labels que Claude asignó antes y que ya no apliquen (`gh issue edit --remove-label`) y agrega los nuevos (`gh issue edit --add-label`). No toques labels puestos manualmente por personas si siguen siendo razonables.
+            4. Si es necesario, inspecciona el código (`game.js`, `index.html`) para ubicar la causa probable.
+            5. Publica un diagnóstico en español con `gh issue comment`. El comentario debe empezar con la línea `<!-- claude-triage -->`. Si ya existe un comentario con ese marcador (issue editado), actualízalo con `gh issue comment --edit-last` en lugar de crear uno nuevo.
+
+            El diagnóstico debe incluir:
+            - **Resumen**: qué se reporta, en una o dos frases.
+            - **Clasificación**: tipo y labels asignados, con una breve justificación.
+            - **Análisis**: causa probable, archivos/funciones relacionados (por ejemplo `collide`, `tryRotate`, `clearLines` en `game.js`) o, si es una petición, cómo encajaría en la arquitectura.
+            - **Información faltante**: qué datos pediría al autor (navegador, pasos para reproducir, etc.), si aplica.
+            - **Siguientes pasos** sugeridos.
+
+            No modifiques archivos del repositorio ni cierres el issue. Sé conciso.
+          claude_args: |
+            --allowedTools "Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh label list:*),Read,Grep,Glob"
