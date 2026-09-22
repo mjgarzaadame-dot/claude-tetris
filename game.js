@@ -14,6 +14,7 @@ const COLORS = [
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
   '#b0bec5', // Tuerca - gris metálico
+  '#ff5252', // Bomba - rojo intenso
 ];
 
 const PIECES = [
@@ -26,9 +27,14 @@ const PIECES = [
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
   [[8,8,8],[8,0,8],[8,8,8]],                  // Tuerca (nut)
+  [[9]],                                       // Bomba (bloque único)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const BOMBA_TYPE = 9;
+const BOMBA_LINE_INTERVAL = 2; // TEMPORAL: bajado para pruebas, volver a 10
+const BOMBA_BONUS_SCORE = 500;
+const BOMBA_FLASH_MS = 180;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -42,11 +48,13 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const bombaLabel = document.getElementById('bomba-label');
 
 const THEME_KEY = 'tetris-theme';
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let gridLineColor, blockHighlightColor;
+let pendingBomba, flash;
 
 function updateThemeColors() {
   const styles = getComputedStyle(document.documentElement);
@@ -75,6 +83,11 @@ function randomPiece() {
   const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function createBombaPiece() {
+  const shape = PIECES[BOMBA_TYPE].map(row => [...row]);
+  return { type: BOMBA_TYPE, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
 
 function collide(shape, ox, oy) {
@@ -129,12 +142,31 @@ function clearLines() {
     }
   }
   if (cleared) {
+    const linesBefore = lines;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (Math.floor(lines / BOMBA_LINE_INTERVAL) > Math.floor(linesBefore / BOMBA_LINE_INTERVAL)) {
+      pendingBomba = true;
+    }
     updateHUD();
   }
+}
+
+function triggerBomba() {
+  const centerRow = current.y;
+  const centerCol = current.x;
+  const minRow = Math.max(0, centerRow - 1);
+  const maxRow = Math.min(ROWS - 1, centerRow + 1);
+  const minCol = Math.max(0, centerCol - 1);
+  const maxCol = Math.min(COLS - 1, centerCol + 1);
+  for (let r = minRow; r <= maxRow; r++)
+    for (let c = minCol; c <= maxCol; c++)
+      board[r][c] = 0;
+  score += BOMBA_BONUS_SCORE * level;
+  flash = { minRow, maxRow, minCol, maxCol, until: performance.now() + BOMBA_FLASH_MS };
+  updateHUD();
 }
 
 function ghostY() {
@@ -162,6 +194,9 @@ function softDrop() {
 
 function lockPiece() {
   merge();
+  if (current.type === BOMBA_TYPE) {
+    triggerBomba();
+  }
   clearLines();
   spawn();
 }
@@ -169,6 +204,10 @@ function lockPiece() {
 function spawn() {
   current = next;
   next = randomPiece();
+  if (pendingBomba) {
+    next = createBombaPiece();
+    pendingBomba = false;
+  }
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -219,6 +258,21 @@ function draw() {
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
 
+  // bomba flash
+  if (flash) {
+    if (performance.now() < flash.until) {
+      ctx.fillStyle = 'rgba(255, 82, 82, 0.4)';
+      ctx.fillRect(
+        flash.minCol * BLOCK,
+        flash.minRow * BLOCK,
+        (flash.maxCol - flash.minCol + 1) * BLOCK,
+        (flash.maxRow - flash.minRow + 1) * BLOCK
+      );
+    } else {
+      flash = null;
+    }
+  }
+
   // ghost
   const gy = ghostY();
   for (let r = 0; r < current.shape.length; r++)
@@ -234,6 +288,7 @@ function draw() {
 
 function drawNext() {
   const NB = 30;
+  bombaLabel.classList.toggle('hidden', next.type !== BOMBA_TYPE);
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
@@ -294,6 +349,8 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  pendingBomba = false;
+  flash = null;
   lastTime = performance.now();
   next = randomPiece();
   spawn();

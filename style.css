@@ -130,6 +130,18 @@ body {
   border-radius: 4px;
 }
 
+.bomba-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ff5252;
+  text-align: center;
+}
+
+.bomba-label.hidden {
+  display: none;
+}
+
 /* ---- Toggle de tema ---- */
 .theme-section .switch-row {
   display: flex;
